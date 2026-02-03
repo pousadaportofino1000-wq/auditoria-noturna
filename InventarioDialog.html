@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 13px; }
+      .row { margin-bottom: 8px; }
+      label { display: inline-block; width: 140px; }
+      input { padding: 4px; width: 220px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+      th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+      th { background: #f2f2f2; }
+      .actions { margin-top: 10px; }
+      .btn { padding: 6px 10px; margin-right: 6px; cursor: pointer; }
+      .error { color: #b00020; margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="row"><b>Inventario semanal</b></div>
+    <div class="row">
+      <label>Data inventario</label>
+      <input type="date" id="dataInventario">
+    </div>
+    <div class="row">
+      <label>Responsavel</label>
+      <input type="text" id="responsavel">
+    </div>
+    <div class="row">
+      <label>Observacoes</label>
+      <input type="text" id="observacoes" style="width: 360px;">
+    </div>
+
+    <table id="itensTable">
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th>Unidade</th>
+          <th>Estoque contado</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="actions">
+      <button class="btn" onclick="submitForm()">Salvar inventario</button>
+    </div>
+    <div id="error" class="error"></div>
+
+    <script>
+      let products = [];
+
+      function init() {
+        google.script.run.withSuccessHandler(data => {
+          products = data.products || [];
+          renderRows();
+        }).withFailureHandler(showError).getInventarioFormData();
+      }
+
+      function renderRows() {
+        const tbody = document.querySelector("#itensTable tbody");
+        tbody.innerHTML = "";
+        products.forEach(p => {
+          const tr = document.createElement("tr");
+
+          const prodTd = document.createElement("td");
+          prodTd.textContent = p.produto;
+
+          const unTd = document.createElement("td");
+          unTd.textContent = p.unidade || "";
+
+          const contTd = document.createElement("td");
+          const inp = document.createElement("input");
+          inp.type = "number";
+          inp.step = "0.01";
+          inp.style.width = "100px";
+          contTd.appendChild(inp);
+
+          tr.appendChild(prodTd);
+          tr.appendChild(unTd);
+          tr.appendChild(contTd);
+          tbody.appendChild(tr);
+        });
+      }
+
+      function submitForm() {
+        const payload = {
+          dataInventario: document.getElementById("dataInventario").value,
+          responsavel: document.getElementById("responsavel").value,
+          observacoes: document.getElementById("observacoes").value,
+          itens: []
+        };
+
+        const rows = document.querySelectorAll("#itensTable tbody tr");
+        rows.forEach((r, i) => {
+          const produto = products[i].produto;
+          const unidade = products[i].unidade;
+          const contado = r.querySelector("input").value || 0;
+          payload.itens.push({ produto, unidade, estoqueContado: contado });
+        });
+
+        google.script.run
+          .withSuccessHandler(() => google.script.host.close())
+          .withFailureHandler(showError)
+          .saveInventario(payload);
+      }
+
+      function showError(err) {
+        document.getElementById("error").textContent = err.message || err;
+      }
+
+      init();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,613 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Importar Omnibees</title>
+
+    <style>
+      :root{
+        --bg:#ffffff;
+        --band:#F5F5F7;
+        --header:#EFEFF4;
+        --border:#D1D1D6;
+        --text:#1C1C1E;
+        --sub:#6E6E73;
+        --accent:#0A58CA;
+        --ok:#027A48;
+        --err:#B42318;
+        --warn:#B54708;
+      }
+      *{ box-sizing:border-box; }
+      body{
+        margin:16px;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        color:var(--text);
+        background:var(--bg);
+      }
+      .top{ margin-bottom:12px; }
+      h2{ margin:0 0 6px; font-size:16px; font-weight:800; letter-spacing:.2px; }
+      .sub{ margin:0; font-size:12px; color:var(--sub); line-height:1.35; }
+
+      .card{
+        border:1px solid var(--border);
+        border-radius:14px;
+        padding:12px;
+        background:var(--bg);
+      }
+      .fileWrap{ display:flex; flex-direction:column; gap:8px; }
+      .field{ display:flex; flex-direction:column; gap:6px; }
+      .label{ font-size:12px; color:var(--sub); font-weight:700; }
+      select{
+        width:100%;
+        padding:10px;
+        border:1px solid var(--border);
+        border-radius:12px;
+        background:#fff;
+      }
+      input[type="file"]{
+        width:100%;
+        padding:10px;
+        border:1px dashed var(--border);
+        border-radius:12px;
+        background:var(--band);
+      }
+      .row{ display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+      .btn{
+        appearance:none;
+        border:1px solid var(--border);
+        background:var(--band);
+        color:var(--text);
+        padding:10px 12px;
+        border-radius:12px;
+        cursor:pointer;
+        font-weight:700;
+        font-size:13px;
+        transition:transform .03s ease;
+      }
+      .btn:active{ transform:scale(.98); }
+      .btn:disabled{ opacity:.55; cursor:not-allowed; }
+      .btnPrimary{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+      .pill{
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        padding:6px 10px;
+        border-radius:999px;
+        background:var(--header);
+        border:1px solid var(--border);
+        font-size:12px;
+        color:var(--sub);
+      }
+      .barWrap{
+        margin-top:12px;
+        height:10px;
+        background:var(--header);
+        border-radius:999px;
+        overflow:hidden;
+        border:1px solid var(--border);
+      }
+      .bar{ height:100%; width:0%; background:var(--accent); transition: width .15s linear; }
+      .status{
+        margin-top:10px;
+        font-size:12px;
+        color:var(--sub);
+        white-space:pre-wrap;
+        line-height:1.35;
+      }
+      .status.ok{ color:var(--ok); }
+      .status.err{ color:var(--err); }
+      .status.warn{ color:var(--warn); }
+      .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+      .kv{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap:8px;
+        margin-top:10px;
+      }
+      .kv .item{
+        border:1px solid var(--border);
+        background:var(--bg);
+        border-radius:12px;
+        padding:10px;
+      }
+      .kv .k{ font-size:11px; color:var(--sub); font-weight:700; }
+      .kv .v{ margin-top:4px; font-size:12px; color:var(--text); word-break:break-word; }
+
+      .divider{ margin-top:12px; border-top:1px solid var(--border); padding-top:12px; }
+      .small{ font-size:11px; color:var(--sub); }
+    </style>
+  </head>
+
+  <body>
+    <? var SOURCE_PRESET = (typeof sourcePreset !== 'undefined' && sourcePreset) ? sourcePreset : 'OMNI'; ?>
+    <? var SOURCE_TITLE = (SOURCE_PRESET === 'NIARA') ? 'Importar Niara' : 'Importar Omnibees'; ?>
+    <div class="top">
+      <h2><?= SOURCE_TITLE ?></h2>
+      <p class="sub">
+        Upload local robusto com envio em <b>chunks</b> (padrão) + fallback automático.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="fileWrap">
+        <div class="field">
+          <label class="label" for="auditor">Auditor</label>
+          <select id="auditor"></select>
+        </div>
+        <input id="file" type="file"
+               accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        <div class="row">
+          <button id="btnImport" class="btn btnPrimary" disabled>Importar</button>
+          <button id="btnCancel" class="btn" disabled>Cancelar</button>
+          <button id="btnClear" class="btn" type="button">Limpar</button>
+          <span class="pill">Modo: <span class="mono" id="modeLabel">—</span></span>
+        </div>
+      </div>
+
+      <div class="barWrap" aria-hidden="true"><div class="bar" id="bar"></div></div>
+      <div id="status" class="status">Selecione um arquivo .xls ou .xlsx.</div>
+
+      <div class="kv">
+        <div class="item">
+          <div class="k">Arquivo</div>
+          <div class="v mono" id="kvName">—</div>
+        </div>
+        <div class="item">
+          <div class="k">Tamanho</div>
+          <div class="v mono" id="kvSize">—</div>
+        </div>
+        <div class="item">
+          <div class="k">Limite “upload simples”</div>
+          <div class="v mono" id="kvSimpleLimit">—</div>
+        </div>
+        <div class="item">
+        <div class="k">Chunk size (bytes)</div>
+          <div class="v mono" id="kvChunk">—</div>
+        </div>
+      </div>
+
+      <div class="divider">
+        <div class="small mono">Endpoint: uploadApi(op, payload)</div>
+      </div>
+    </div>
+
+    <script>
+      const $file = document.getElementById('file');
+      const $auditor = document.getElementById('auditor');
+      const $btnImport = document.getElementById('btnImport');
+      const $btnCancel = document.getElementById('btnCancel');
+      const $btnClear = document.getElementById('btnClear');
+
+      const $status = document.getElementById('status');
+      const $bar = document.getElementById('bar');
+      const $modeLabel = document.getElementById('modeLabel');
+
+      const $kvName = document.getElementById('kvName');
+      const $kvSize = document.getElementById('kvSize');
+      const $kvSimpleLimit = document.getElementById('kvSimpleLimit');
+      const $kvChunk = document.getElementById('kvChunk');
+
+      const DEFAULTS = { maxBytes: 8 * 1024 * 1024, maxMB: 8, chunkSizeChars: 200 * 1024, chunkSizeBytes: 256 * 1024 };
+      const SOURCE_PRESET = "<?= SOURCE_PRESET ?>";
+      let limits = { ...DEFAULTS };
+
+      let isRunning = false;
+      let cancelRequested = false;
+      let currentMode = ""; // "SIMPLE" | "CHUNKS"
+      let auditorsList = [];
+
+      function setProgress(pct) {
+        const v = Math.max(0, Math.min(100, pct));
+        $bar.style.width = v.toFixed(0) + '%';
+      }
+
+      function setStatus(msg, kind) {
+        $status.textContent = msg || '';
+        $status.classList.remove('ok', 'err', 'warn');
+        if (kind) $status.classList.add(kind);
+      }
+
+      function setMode(text) {
+        $modeLabel.textContent = text || '—';
+      }
+
+      function fmtMB(bytes) {
+        if (!bytes && bytes !== 0) return '—';
+        return (bytes / (1024 * 1024)).toFixed(2) + 'MB';
+      }
+
+      function setKv(file) {
+        if (!file) { $kvName.textContent='—'; $kvSize.textContent='—'; return; }
+        $kvName.textContent = file.name || '—';
+        $kvSize.textContent = fmtMB(file.size);
+      }
+
+      function setLimitsKv() {
+        $kvSimpleLimit.textContent = `${limits.maxMB}MB (${limits.maxBytes} bytes)`;
+        $kvChunk.textContent = `${limits.chunkSizeBytes} bytes`;
+      }
+
+      function getSelectedAuditor() {
+        return ($auditor.value || '').trim();
+      }
+
+      function getSourceType() {
+        return (SOURCE_PRESET || 'OMNI').toUpperCase();
+      }
+
+      function isAuditorRequired() {
+        return getSourceType() === 'OMNI';
+      }
+
+      function canImport() {
+        const hasFile = !!($file.files && $file.files.length);
+        const hasAuditor = !!getSelectedAuditor();
+        return hasFile && (!isAuditorRequired() || hasAuditor);
+      }
+
+      function disableWhileRunning(running) {
+        isRunning = running;
+        $btnImport.disabled = running || !canImport();
+        $btnCancel.disabled = !running;
+        $btnClear.disabled = running;
+        $file.disabled = running;
+        $auditor.disabled = running;
+      }
+
+      function normalizeErr(err) {
+        if (!err) return 'Erro desconhecido.';
+        if (typeof err === 'string') return err;
+        if (err.message) return err.message;
+        try { return JSON.stringify(err, null, 2); } catch (_) { return String(err); }
+      }
+
+      // CHAMADA ÚNICA SERVER-SIDE
+      function callUploadApi(op, payload) {
+        return new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .uploadApi(op, payload);
+        });
+      }
+
+      function readAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onerror = () => reject(new Error('FileReader falhou ao ler o arquivo.'));
+          r.onload = () => resolve(r.result);
+          r.readAsDataURL(file);
+        });
+      }
+
+      function readSliceAsArrayBuffer(file, start, end) {
+        return new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onerror = () => reject(new Error('FileReader falhou ao ler o chunk.'));
+          r.onload = () => resolve(r.result);
+          r.readAsArrayBuffer(file.slice(start, end));
+        });
+      }
+
+      function base64FromBytes(bytes) {
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          const sub = bytes.subarray(i, i + chunk);
+          binary += String.fromCharCode.apply(null, sub);
+        }
+        return btoa(binary);
+      }
+
+      function shouldUseSimple(file) {
+        return file.size <= limits.maxBytes;
+      }
+
+      async function uploadSimple(file) {
+        currentMode = "SIMPLE";
+        setMode('SIMPLE');
+        setProgress(5);
+        setStatus('Lendo arquivo no navegador...');
+
+        const dataUrl = await readAsDataURL(file);
+        const base64 = (String(dataUrl).split(',')[1] || '').trim();
+        if (!base64 || base64.length < 100) throw new Error('Falha ao gerar base64.');
+        if (cancelRequested) throw new Error('Operação cancelada.');
+
+        setProgress(25);
+        setStatus('Enviando (simple) e processando...');
+        const msg = await callUploadApi("simple", {
+          fileName: file.name,
+          mimeType: file.type || "",
+          base64Data: base64,
+          auditorName: getSelectedAuditor(),
+          sourceType: getSourceType()
+        });
+
+        setProgress(100);
+        setStatus(String(msg || 'Concluído.'), 'ok');
+      }
+
+      async function sendChunkWithRetry(token, index, chunkBase64, retries) {
+        let lastErr = null;
+        for (let a = 0; a <= retries; a++) {
+          try {
+            await callUploadApi("chunk", { token, index, chunkBase64 });
+            return;
+          } catch (e) {
+            lastErr = e;
+            await new Promise(r => setTimeout(r, 250 * (a + 1)));
+          }
+        }
+        throw new Error(`Falha ao enviar chunk ${index + 1}. Erro: ${normalizeErr(lastErr)}`);
+      }
+
+      async function sendResumableChunkWithRetry(session, offset, chunkBase64, totalSizeBytes, retries) {
+        let lastErr = null;
+        for (let a = 0; a <= retries; a++) {
+          try {
+            return await callUploadApi("rchunk", {
+              token: session && session.token,
+              uploadUrl: session && session.uploadUrl,
+              fileName: session && session.fileName,
+              auditorName: session && session.auditorName,
+              sourceType: session && session.sourceType,
+              offset,
+              chunkBase64,
+              totalSizeBytes
+            });
+          } catch (e) {
+            lastErr = e;
+            await new Promise(r => setTimeout(r, 250 * (a + 1)));
+          }
+        }
+        throw new Error(`Falha ao enviar chunk no offset ${offset}. Erro: ${normalizeErr(lastErr)}`);
+      }
+
+      async function uploadResumable(file) {
+        currentMode = "RESUMABLE";
+        setMode('RESUMABLE');
+
+        setProgress(5);
+        setStatus('Iniciando upload resumável...');
+
+        const startRes = await callUploadApi("rstart", {
+          fileName: file.name,
+          mimeType: file.type || "",
+          totalSizeBytes: file.size,
+          sourceType: getSourceType()
+        });
+        const session = (startRes && typeof startRes === 'object')
+          ? startRes
+          : { uploadUrl: startRes, fileName: file.name };
+
+        const chunkSize = Number(limits.chunkSizeBytes) || DEFAULTS.chunkSizeBytes;
+        const totalChunks = Math.ceil(file.size / chunkSize);
+
+        let offset = 0;
+        let part = 0;
+        while (offset < file.size) {
+          if (cancelRequested) throw new Error('Operação cancelada.');
+
+          const end = Math.min(offset + chunkSize, file.size);
+          const buf = await readSliceAsArrayBuffer(file, offset, end);
+          const base64 = base64FromBytes(new Uint8Array(buf));
+
+          const res = await sendResumableChunkWithRetry(
+            { ...session, fileName: file.name, auditorName: getSelectedAuditor(), sourceType: getSourceType() },
+            offset,
+            base64,
+            file.size,
+            2
+          );
+
+          part++;
+          offset = end;
+
+          const pct = 10 + Math.floor((offset / file.size) * 75);
+          setProgress(pct);
+          setStatus(`Enviando parte ${part}/${totalChunks}...`);
+
+          if (res && res.done) {
+            setProgress(100);
+            setStatus(String(res.message || 'Concluído.'), 'ok');
+            return;
+          }
+        }
+
+        setProgress(90);
+        setStatus('Finalizando...');
+        await callUploadApi("rfinish", { token: session && session.token });
+        setProgress(100);
+        setStatus('Concluído.', 'ok');
+      }
+
+      async function uploadChunks(file) {
+        currentMode = "CHUNKS";
+        setMode('CHUNKS');
+
+        setProgress(5);
+        setStatus('Lendo arquivo no navegador...');
+        const dataUrl = await readAsDataURL(file);
+        const base64 = (String(dataUrl).split(',')[1] || '').trim();
+        if (!base64 || base64.length < 100) throw new Error('Falha ao gerar base64.');
+        if (cancelRequested) throw new Error('Operação cancelada.');
+
+        const chunkSize = Number(limits.chunkSizeChars) || DEFAULTS.chunkSizeChars;
+        const totalChunks = Math.ceil(base64.length / chunkSize);
+
+        setProgress(12);
+        setStatus(`Iniciando upload em ${totalChunks} partes...`);
+
+        const token = await callUploadApi("start", {
+          fileName: file.name,
+          mimeType: file.type || "",
+          totalSizeBytes: file.size,
+          totalChunks,
+          auditorName: getSelectedAuditor(),
+          sourceType: getSourceType()
+        });
+
+        for (let i = 0; i < totalChunks; i++) {
+          if (cancelRequested) throw new Error('Operação cancelada.');
+
+          const start = i * chunkSize;
+          const end = Math.min(base64.length, (i + 1) * chunkSize);
+          const chunkBase64 = base64.slice(start, end);
+
+          await sendChunkWithRetry(token, i, chunkBase64, 2);
+
+          const pct = 12 + Math.floor(((i + 1) / totalChunks) * 70);
+          setProgress(pct);
+          setStatus(`Enviando parte ${i + 1}/${totalChunks}...`);
+        }
+
+        setProgress(85);
+        setStatus('Finalizando e processando...');
+        const msg = await callUploadApi("finish", { token, sourceType: getSourceType() });
+
+        setProgress(100);
+        setStatus(String(msg || 'Concluído.'), 'ok');
+      }
+
+      // UI handlers
+      $file.addEventListener('change', () => {
+        cancelRequested = false;
+        const f = $file.files && $file.files[0];
+        setKv(f);
+
+        if (!f) {
+          setStatus(getInitialStatus());
+          setMode('—');
+          $btnImport.disabled = true;
+          return;
+        }
+
+        const simple = shouldUseSimple(f);
+        if (simple) {
+          setStatus('Arquivo selecionado.\nAUTO: SIMPLE (fallback para CHUNKS se falhar).');
+          setMode('AUTO → SIMPLE');
+        } else {
+          setStatus('Arquivo selecionado (grande).\nAUTO: CHUNKS (robusto).', 'warn');
+          setMode('AUTO → CHUNKS');
+        }
+
+        $btnImport.disabled = !canImport();
+      });
+
+      $auditor.addEventListener('change', () => {
+        if (isAuditorRequired() && !getSelectedAuditor()) {
+          setStatus('Selecione um auditor para continuar.', 'warn');
+        }
+        $btnImport.disabled = !canImport();
+      });
+
+        $btnClear.addEventListener('click', () => {
+          if (isRunning) return;
+          $file.value = '';
+          cancelRequested = false;
+          currentMode = "";
+          setProgress(0);
+          setStatus(getInitialStatus());
+          setMode('—');
+          setKv(null);
+          setLimitsKv();
+          $auditor.value = '';
+          $btnImport.disabled = true;
+        });
+
+      $btnCancel.addEventListener('click', () => {
+        if (!isRunning) return;
+        cancelRequested = true;
+        setStatus('Cancelamento solicitado. Encerrando na próxima etapa segura...', 'warn');
+      });
+
+      $btnImport.addEventListener('click', async () => {
+        if (isRunning) return;
+        const f = $file.files && $file.files[0];
+        if (!f) return;
+        if (isAuditorRequired() && !getSelectedAuditor()) {
+          setStatus('Selecione um auditor antes de importar.', 'warn');
+          return;
+        }
+
+        cancelRequested = false;
+        disableWhileRunning(true);
+
+        try {
+          setProgress(1);
+          setStatus('Preparando importação...');
+
+          if (shouldUseSimple(f)) {
+            try {
+              await uploadSimple(f);
+            } catch (e) {
+              // fallback automático se SIMPLE falhar (e não foi cancelado)
+              if (!cancelRequested) {
+                setStatus(`Falha no SIMPLE.\nFallback automático para RESUMABLE...\n\nErro: ${normalizeErr(e)}`, 'warn');
+                await uploadResumable(f);
+              } else {
+                throw e;
+              }
+            }
+          } else {
+            await uploadResumable(f);
+          }
+
+          disableWhileRunning(false);
+        } catch (e) {
+          setProgress(0);
+          setStatus(normalizeErr(e), cancelRequested ? 'warn' : 'err');
+          disableWhileRunning(false);
+        }
+      });
+
+      // boot
+      (async function boot() {
+        disableWhileRunning(false);
+        setProgress(0);
+        setLimitsKv();
+
+        if (!isAuditorRequired()) {
+          $auditor.closest('.field').style.display = 'none';
+          setStatus(getInitialStatus());
+        }
+
+        try {
+          const res = await callUploadApi("limits", {});
+          if (res && res.maxBytes) limits = res;
+          setLimitsKv();
+        } catch (e) {
+          setStatus(`Aviso: não consegui ler limites do servidor.\n${normalizeErr(e)}`, 'warn');
+        }
+
+        try {
+          const list = await callUploadApi("auditors", {});
+          auditorsList = Array.isArray(list) ? list.filter(Boolean) : [];
+          $auditor.innerHTML = '';
+          const opt0 = document.createElement('option');
+          opt0.value = '';
+          opt0.textContent = 'Selecione o auditor...';
+          $auditor.appendChild(opt0);
+          auditorsList.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            $auditor.appendChild(opt);
+          });
+        } catch (e) {
+          setStatus(`Aviso: não consegui carregar auditores.\n${normalizeErr(e)}`, 'warn');
+        }
+      })();
+    </script>
+  </body>
+</html>
+      function getInitialStatus() {
+        return isAuditorRequired()
+          ? 'Selecione um auditor e um arquivo .xls ou .xlsx.'
+          : 'Selecione um arquivo .xls ou .xlsx.';
+      }

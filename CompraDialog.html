@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 13px; }
+      .row { margin-bottom: 8px; }
+      label { display: inline-block; width: 140px; }
+      input, select { padding: 4px; width: 220px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+      th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+      th { background: #f2f2f2; }
+      .actions { margin-top: 10px; }
+      .btn { padding: 6px 10px; margin-right: 6px; cursor: pointer; }
+      .error { color: #b00020; margin-top: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="row"><b>Cabecalho da Nota</b></div>
+    <div class="row">
+      <label>Data da compra</label>
+      <input type="date" id="dataCompra">
+    </div>
+    <div class="row">
+      <label>Fornecedor</label>
+      <input type="text" id="fornecedor">
+    </div>
+    <div class="row">
+      <label>Numero documento</label>
+      <input type="text" id="numeroDocumento">
+    </div>
+    <div class="row">
+      <label>Forma pagamento</label>
+      <select id="formaPagamento"></select>
+    </div>
+    <div class="row">
+      <label>Total nota (R$)</label>
+      <input type="number" step="0.01" id="totalNota">
+    </div>
+    <div class="row">
+      <label>Observacoes</label>
+      <input type="text" id="observacoes" style="width: 360px;">
+    </div>
+
+    <div class="row"><b>Itens da Nota</b></div>
+    <table id="itensTable">
+      <thead>
+        <tr>
+          <th>Produto</th>
+          <th>Qtd</th>
+          <th>Preco Unit</th>
+          <th>Acoes</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="actions">
+      <button class="btn" onclick="addRow()">Adicionar item</button>
+      <button class="btn" onclick="submitForm()">Salvar</button>
+    </div>
+    <div id="error" class="error"></div>
+
+    <script>
+      let products = [];
+      let formas = [];
+
+      function init() {
+        google.script.run.withSuccessHandler(data => {
+          products = data.products || [];
+          formas = data.formas || [];
+          const formaSel = document.getElementById("formaPagamento");
+          formaSel.innerHTML = formas.map(f => `<option value="${f}">${f}</option>`).join("");
+          addRow();
+        }).withFailureHandler(showError).getCompraFormData();
+      }
+
+      function addRow() {
+        const tbody = document.querySelector("#itensTable tbody");
+        const tr = document.createElement("tr");
+
+        const prodTd = document.createElement("td");
+        const sel = document.createElement("select");
+        sel.innerHTML = `<option value=""></option>` + products.map(p =>
+          `<option value="${p.produto}">${p.produto}</option>`
+        ).join("");
+        prodTd.appendChild(sel);
+
+        const qtdTd = document.createElement("td");
+        const qtd = document.createElement("input");
+        qtd.type = "number";
+        qtd.step = "0.01";
+        qtd.style.width = "90px";
+        qtdTd.appendChild(qtd);
+
+        const precoTd = document.createElement("td");
+        const preco = document.createElement("input");
+        preco.type = "number";
+        preco.step = "0.01";
+        preco.style.width = "90px";
+        precoTd.appendChild(preco);
+
+        const actTd = document.createElement("td");
+        const del = document.createElement("button");
+        del.textContent = "Remover";
+        del.onclick = () => tr.remove();
+        actTd.appendChild(del);
+
+        tr.appendChild(prodTd);
+        tr.appendChild(qtdTd);
+        tr.appendChild(precoTd);
+        tr.appendChild(actTd);
+        tbody.appendChild(tr);
+      }
+
+      function submitForm() {
+        const payload = {
+          cabecalho: {
+            dataCompra: document.getElementById("dataCompra").value,
+            fornecedor: document.getElementById("fornecedor").value,
+            numeroDocumento: document.getElementById("numeroDocumento").value,
+            formaPagamento: document.getElementById("formaPagamento").value,
+            totalNota: document.getElementById("totalNota").value,
+            observacoes: document.getElementById("observacoes").value,
+          },
+          itens: []
+        };
+
+        const rows = document.querySelectorAll("#itensTable tbody tr");
+        rows.forEach(r => {
+          const cells = r.querySelectorAll("td");
+          const produto = cells[0].querySelector("select").value;
+          const qtd = cells[1].querySelector("input").value;
+          const preco = cells[2].querySelector("input").value;
+          if (produto && qtd && preco) {
+            payload.itens.push({ produto, quantidade: qtd, precoUnitario: preco });
+          }
+        });
+
+        if (!payload.itens.length) {
+          showError({ message: "Inclua ao menos um item valido." });
+          return;
+        }
+
+        if (!payload.cabecalho.totalNota) {
+          let total = 0;
+          payload.itens.forEach(i => total += Number(i.quantidade) * Number(i.precoUnitario));
+          payload.cabecalho.totalNota = total.toFixed(2);
+        }
+
+        google.script.run
+          .withSuccessHandler(() => google.script.host.close())
+          .withFailureHandler(showError)
+          .saveCompra(payload);
+      }
+
+      function showError(err) {
+        document.getElementById("error").textContent = err.message || err;
+      }
+
+      init();
+    </script>
+  </body>
+</html>
