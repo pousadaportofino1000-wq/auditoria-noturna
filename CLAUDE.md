@@ -19,7 +19,7 @@ clasp push
 clasp pull
 
 # Open project in Apps Script editor
-clasp open
+clasp open-script
 ```
 
 ## Architecture
